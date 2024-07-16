@@ -36,11 +36,24 @@ router.post(
       return '400 Bad Request: Invalid parameters.';
     }
 
+    if (
+      !c.cloudflare.env?.DISCORD_CLIENT_ID ||
+      !c.cloudflare.env?.DISCORD_CLIENT_SECRET ||
+      !c.cloudflare.env?.REDIRECT_URL
+    ) {
+      setResponseHeaders(e, {
+        'content-type': 'text/plain',
+      });
+
+      setResponseStatus(e, 500, 'Internal Server Error');
+      return '500 Internal Server Error: `Client ID` or `Client Secret` or `Redirect URL` is not correctly set.';
+    }
+
     // eslint-disable-next-line n/no-unsupported-features/node-builtins
     const params = new URLSearchParams({
-      client_id: c.cloudflare.env?.CLIENT_ID,
-      client_secret: c.cloudflare.env?.CLIENT_SECRET,
-      redirect_uri: c.cloudflare.env?.REDIRECT_URL,
+      client_id: c.cloudflare.env.DISCORD_CLIENT_ID,
+      client_secret: c.cloudflare.env.DISCORD_CLIENT_SECRET,
+      redirect_uri: c.cloudflare.env.REDIRECT_URL,
       code: code,
       grant_type: 'authorization_code',
       scope: 'identify email',
@@ -69,7 +82,7 @@ router.post(
       },
     }).then(res => res.json<APIUser>());
 
-    if (!userInfo) {
+    if (!userInfo || !userInfo.id) {
       setResponseHeaders(e, {
         'content-type': 'text/plain',
       });
@@ -137,7 +150,7 @@ router.post(
     const displayName = userInfo['global_name'] ?? userInfo['username'];
 
     const idToken = await new jose.SignJWT({
-      aud: c.cloudflare.env.CLIENT_ID,
+      aud: c.cloudflare.env.DISCORD_CLIENT_ID,
       iss: 'https://www.cloudflare.com',
 
       email: userInfo['email'],
@@ -146,13 +159,14 @@ router.post(
       username: displayName,
       global_name: userInfo['global_name'],
       preferred_username,
+      avatar_url: `https://cdn.discordapp.com/avatars/${userInfo['id']}/${userInfo['avatar']}.png`,
 
       ...roleClaims,
       guilds: servers,
     })
       .setProtectedHeader({alg: 'RS256'})
       .setExpirationTime('1h')
-      .setAudience(c.cloudflare.env.CLIENT_ID)
+      .setAudience(c.cloudflare.env.DISCORD_CLIENT_ID)
       .sign(
         (await jwtPlugin.loadOrGenerateKeyPair(c.cloudflare.env.KV)).privateKey
       );

@@ -36,7 +36,7 @@ Example:
 
 ```toml
 [vars]
-CLIENT_ID="YOUR_CLIENT_ID"
+DISCORD_CLIENT_ID="YOUR_CLIENT_ID"
 REDIRECT_URL="https://YOURNAME.cloudflareaccess.com/cdn-cgi/access/callback"
 ```
 
@@ -100,7 +100,7 @@ Example:
 
 ```toml
 [vars]
-CLIENT_ID="YOUR_CLIENT_ID"
+DISCORD_CLIENT_ID="YOUR_CLIENT_ID"
 REDIRECT_URL="https://YOURNAME.cloudflareaccess.com/cdn-cgi/access/callback"
 SERVERS_ROLE_CLAIMS=["YOUR_SERVER_ID", "YOUR_OTHER_SERVER_ID", ...]
 ```
