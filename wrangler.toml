@@ -3,12 +3,12 @@ main = "src/workers.ts"
 compatibility_date = "2023-08-01"
 
 kv_namespaces = [
-  { binding = "KV", id = "0b9abda82acf461c8d4ecda656217e20", preview_id = "b43c22430b5240dea89cd6cc350d3946" }
+  { binding = "KV", id = "fbf094f281004624b8cb173bc7a5a209", preview_id = "5abf0d59e2cd476d9d2b9945fe3e889e" }
 ]
 
 [vars]
-CLIENT_ID="YOUR_CLIENT_ID"
-REDIRECT_URL="https://YOURNAME.cloudflareaccess.com/cdn-cgi/access/callback"
+CLIENT_ID="1187247163768586280"
+REDIRECT_URL="https://spacewak.cloudflareaccess.com/cdn-cgi/access/callback"
 SERVERS_ROLE_CLAIMS=[
-  "YOUR_SERVER_ID"
+  "1088840877113352193"
 ]
