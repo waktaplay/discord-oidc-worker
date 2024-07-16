@@ -7,7 +7,7 @@ kv_namespaces = [
 ]
 
 [vars]
-CLIENT_ID="1187247163768586280"
+DISCORD_CLIENT_ID="1187247163768586280"
 REDIRECT_URL="https://spacewak.cloudflareaccess.com/cdn-cgi/access/callback"
 SERVERS_ROLE_CLAIMS=[
   "1088840877113352193"

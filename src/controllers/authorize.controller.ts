@@ -15,7 +15,10 @@ router.get(
     const c = e.context;
     const query = getQuery(e);
 
-    if (!c.cloudflare.env?.CLIENT_ID || !c.cloudflare.env?.REDIRECT_URL) {
+    if (
+      !c.cloudflare.env?.DISCORD_CLIENT_ID ||
+      !c.cloudflare.env?.REDIRECT_URL
+    ) {
       setResponseHeaders(e, {
         'content-type': 'text/plain',
       });
@@ -25,7 +28,7 @@ router.get(
     }
 
     if (
-      query.client_id !== c.cloudflare.env.CLIENT_ID ||
+      query.client_id !== c.cloudflare.env.DISCORD_CLIENT_ID ||
       query.redirect_uri !== c.cloudflare.env.REDIRECT_URL ||
       c.params?.scopemode === undefined ||
       !['guilds', 'email'].includes(c.params.scopemode)
@@ -40,7 +43,7 @@ router.get(
 
     // eslint-disable-next-line n/no-unsupported-features/node-builtins
     const params = new URLSearchParams({
-      client_id: c.cloudflare.env.CLIENT_ID as string,
+      client_id: c.cloudflare.env.DISCORD_CLIENT_ID as string,
       redirect_uri: c.cloudflare.env.REDIRECT_URL as string,
       response_type: 'code',
       scope:
