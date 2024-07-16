@@ -1,7 +1,7 @@
 import {
   createRouter,
   defineEventHandler,
-  readBody,
+  readFormData,
   setResponseHeaders,
   setResponseStatus,
 } from 'h3';
@@ -24,8 +24,17 @@ router.post(
   '/token',
   defineEventHandler(async e => {
     const c = e.context;
-    const body = await readBody(e);
+    const body = await readFormData(e);
     const code = body.get('code');
+
+    if (!code) {
+      setResponseHeaders(e, {
+        'content-type': 'text/plain',
+      });
+
+      setResponseStatus(e, 400, 'Bad Request');
+      return '400 Bad Request: Invalid parameters.';
+    }
 
     // eslint-disable-next-line n/no-unsupported-features/node-builtins
     const params = new URLSearchParams({
