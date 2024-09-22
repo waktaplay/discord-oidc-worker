@@ -16,16 +16,22 @@ import {
 import * as jose from 'jose';
 
 import {JwtPlugin} from '../plugins/jwk.plugin';
+import {CachePlugin} from '../plugins/cache.plugin';
+
+import {H3EventContextWithCloudflare} from '../types/cloudflare';
 
 const router = createRouter();
 const jwtPlugin = new JwtPlugin();
+const cachePlugin = new CachePlugin();
 
 router.post(
   '/token',
   defineEventHandler(async e => {
-    const c = e.context;
+    const c = e.context as H3EventContextWithCloudflare;
     const body = await readFormData(e);
     const code = body.get('code');
+
+    await cachePlugin.init(c.cloudflare.env.KV);
 
     if (!code) {
       setResponseHeaders(e, {
@@ -56,7 +62,6 @@ router.post(
       redirect_uri: c.cloudflare.env.REDIRECT_URL,
       code: code,
       grant_type: 'authorization_code',
-      scope: 'identify email',
     }).toString();
 
     const r = await fetch('https://discord.com/api/v10/oauth2/token', {
@@ -64,6 +69,8 @@ router.post(
       body: params,
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent':
+          'DiscordBot (https://github.com/waktaplay/discord-oidc-worker, v2.0.2)',
       },
     }).then(res => res.json<RESTPostOAuth2AccessTokenResult>());
 
@@ -76,9 +83,13 @@ router.post(
       return '400 Bad Request: Error while fetching the access token.';
     }
 
+    const returned_scope = r['scope'].split(' ');
+
     const userInfo = await fetch('https://discord.com/api/v10/users/@me', {
       headers: {
-        Authorization: 'Bearer ' + r['access_token'],
+        Authorization: `Bearer ${r['access_token']}`,
+        'User-Agent':
+          'DiscordBot (https://github.com/waktaplay/discord-oidc-worker, v2.0.2)',
       },
     }).then(res => res.json<APIUser>());
 
@@ -100,19 +111,24 @@ router.post(
       return "403 Forbidden: You don't have access to login to this resource.";
     }
 
-    const serversResp = await fetch(
-      'https://discord.com/api/v10/users/@me/guilds',
-      {
-        headers: {
-          Authorization: 'Bearer ' + r['access_token'],
-        },
-      }
-    );
-
     let servers: string[] = [];
-    if (serversResp.ok && serversResp.status === 200) {
-      const serverJson = await serversResp.json<APIGuild[]>();
-      servers = serverJson.map(x => x['id']);
+
+    if (returned_scope.includes('guilds')) {
+      const serversResp = await fetch(
+        'https://discord.com/api/v10/users/@me/guilds',
+        {
+          headers: {
+            Authorization: `Bearer ${r['access_token']}`,
+            'User-Agent':
+              'DiscordBot (https://github.com/waktaplay/discord-oidc-worker, v2.0.2)',
+          },
+        }
+      );
+
+      if (serversResp.ok && serversResp.status === 200) {
+        const serverJson = await serversResp.json<APIGuild[]>();
+        servers = serverJson.map(x => x['id']);
+      }
     }
 
     const roleClaims: {
@@ -121,21 +137,43 @@ router.post(
 
     if (
       c.cloudflare.env.DISCORD_TOKEN &&
-      c.cloudflare.env.SERVERS_ROLE_CLAIMS
+      c.cloudflare.env.SERVERS_ROLE_CLAIMS &&
+      (c.cloudflare.env.SERVERS_ROLE_CLAIMS as string[]).length > 0
     ) {
       await Promise.all(
         c.cloudflare.env.SERVERS_ROLE_CLAIMS.map(async (guildId: string) => {
-          if (servers.includes(guildId)) {
-            const memberResp = await fetch(
-              `https://discord.com/api/v10/guilds/${guildId}/members/${userInfo['id']}`,
-              {
-                headers: {
-                  Authorization: 'Bot ' + c.cloudflare.env.DISCORD_TOKEN,
-                },
-              }
-            ).then(res => res.json<APIGuildMember>());
+          if (c.cloudflare.env.CACHE_ROLES) {
+            const roleCache = await cachePlugin.get<{
+              // User ID
+              [key: string]: string[];
+            }>(`roles:${guildId}`);
 
-            roleClaims[`roles:${guildId}`] = memberResp.roles;
+            if (roleCache && userInfo['id'] in roleCache) {
+              roleClaims[`roles:${guildId}`] = roleCache[userInfo['id']];
+            }
+          } else {
+            if (servers.includes(guildId)) {
+              const isFromMember = returned_scope.includes(
+                'guilds.members.read'
+              );
+
+              const memberResp = await fetch(
+                isFromMember
+                  ? `https://discord.com/api/users/@me/guilds/${guildId}/member`
+                  : `https://discord.com/api/v10/guilds/${guildId}/members/${userInfo['id']}`,
+                {
+                  headers: {
+                    Authorization: isFromMember
+                      ? `Bearer ${r['access_token']}`
+                      : `Bot ${c.cloudflare.env.DISCORD_TOKEN}`,
+                    'User-Agent':
+                      'DiscordBot (https://github.com/waktaplay/discord-oidc-worker, v2.0.2)',
+                  },
+                }
+              ).then(res => res.json<APIGuildMember>());
+
+              roleClaims[`roles:${guildId}`] = memberResp.roles;
+            }
           }
         })
       );

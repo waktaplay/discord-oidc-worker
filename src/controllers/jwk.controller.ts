@@ -1,14 +1,18 @@
 import {createRouter, defineEventHandler} from 'h3';
 import {JwtPlugin} from '../plugins/jwk.plugin';
 
+import {H3EventContextWithCloudflare} from '../types/cloudflare';
+
 const router = createRouter();
 const jwtPlugin = new JwtPlugin();
 
 router.get(
   '/jwks.json',
   defineEventHandler(async e => {
+    const c = e.context as H3EventContextWithCloudflare;
+
     const publicKey = (
-      await jwtPlugin.loadOrGenerateKeyPair(e.context.cloudflare.env.KV)
+      await jwtPlugin.loadOrGenerateKeyPair(c.cloudflare.env.KV)
     ).publicKey;
 
     return {

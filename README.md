@@ -6,14 +6,15 @@ Wraps OIDC around the Discord OAuth2 API to achieve this, storing signing keys i
 This is a fork of [Erisa/discord-oidc-worker](https://github.com/Erisa/discord-oidc-worker) with the following changes:
 
 - Rewritten entirely in [TypeScript](https://www.typescriptlang.org/) with [h3](https://h3.unjs.io/) for performance improvements.
-- More wide range of claims are now supported.
+- More wide range of claims are now supported, as well as the caches Discord API responses to prevent rate limiting.
 - Removed config.json and replaced it with environment variables.
+
 
 ## Setup
 
 Requirements:
 
-- A Cloudflare Access account - make sure you've gone through the onboarding flow and have a `NAME.cloudflareaccess.com` subddomain.
+- A Cloudflare Access account - make sure you've gone through the onboarding flow and have a `NAME.cloudflareaccess.com` subdomain.
 - A [Discord developer application](https://discord.com/developers/applications) to use for OAuth2.
   - Add a redirect URI `https://YOURNAME.cloudflareaccess.com/cdn-cgi/access/callback` to the Discord application.
 - An installation of Node.js
@@ -46,9 +47,10 @@ REDIRECT_URL="https://YOURNAME.cloudflareaccess.com/cdn-cgi/access/callback"
 
 7. Publish the Worker with `wrangler deploy`!
 
+
 ## Usage
 
-1.Go to the [Cloudflare Zero Trust dashboard](https://one.dash.cloudflare.com)
+1. Go to the [Cloudflare Zero Trust dashboard](https://one.dash.cloudflare.com)
 
 2. Navigate to Settings > Authentication, select "Add new" under Login methods, select OpenID Connect.
 
@@ -84,7 +86,10 @@ REDIRECT_URL="https://YOURNAME.cloudflareaccess.com/cdn-cgi/access/callback"
 
 - See the Examples section below for help with constructing policies.
 
-## Usage with roles
+
+## Usage with roles (Bot required)
+> :warning: This method can run into ratelimits pretty quickly if used by many users at the same time. It is recommended to use the [cached roles](#usage-with-cached-roles-bot-required-safer-method) method.
+> However, this method allows to check for roles in real-time and is less likely to incur charges for KV namespace reads/writes.
 
 1. Follow the above setup, making sure to use the `/guilds` auth URL.
 
@@ -103,11 +108,67 @@ Example:
 DISCORD_CLIENT_ID="YOUR_CLIENT_ID"
 REDIRECT_URL="https://YOURNAME.cloudflareaccess.com/cdn-cgi/access/callback"
 SERVERS_ROLE_CLAIMS=["YOUR_SERVER_ID", "YOUR_OTHER_SERVER_ID", ...]
+CACHE_ROLES=false
 ```
 
 5. Edit the OIDC provider in Cloudflare Access and add the server IDs as claims prefixed with `roles:`, e.g. `roles:438781053675634713`
 
 6. When creating a policy, reference the `roles:` claims as the name, and use the role ID as the claim value. This will match users in that server who have that role.
+
+
+## Usage with roles (Without bot)
+> :warning: This method relies on bearer tokens and runs into rate limits very quickly. It is not recommended to use this method unless you have a very small number of servers to check roles for.
+> However, this method allows to check for roles in real-time and is less likely to incur charges for KV namespace reads/writes.
+
+1. Follow the above setup, making sure to use the `/roles` auth URL.
+
+2. Populate `wrangler.toml` with a list of server IDs that you wish to check user roles for. **You should set `CACHE_ROLES` to `false` when you use this method**.
+
+Example:
+
+```toml
+[vars]
+DISCORD_CLIENT_ID="YOUR_CLIENT_ID"
+REDIRECT_URL="https://YOURNAME.cloudflareaccess.com/cdn-cgi/access/callback"
+SERVERS_ROLE_CLAIMS=["YOUR_SERVER_ID", "YOUR_OTHER_SERVER_ID", ...]
+CACHE_ROLES=false
+```
+
+3. Edit the OIDC provider in Cloudflare Access and add the server IDs as claims prefixed with `roles:`, e.g. `roles:438781053675634713`
+
+4. When creating a policy, reference the `roles:` claims as the name, and use the role ID as the claim value. This will match users in that server who have that role.
+
+
+## Usage with cached roles (Bot required, safer method)
+> :warning: This method relies heavily on the KV namespace, so you may be charged for KV namespace usage when you reach your limit.
+> If you don't want to worry about KV namespace limits, use the [Usage with roles (Bot required)](#usage-with-roles-bot-required) method.
+
+1. Follow the above setup, making sure to use the `/guilds` auth URL.
+
+2. Create a Discord Bot for the OAuth2 application, generate an OAuth2 URL with the `bot` scope and use it to invite the bot to your server.
+
+   - The bot does not need any permissions, it just needs to exist in the server.
+
+3. Generate a bot token and paste it into `wrangler secret put DISCORD_TOKEN`.
+
+4. Populate `wrangler.toml` with a list of server IDs that you wish to check user roles for. **Make sure the bot is a member of all servers in this list**.
+
+5. Set `CACHE_ROLES` to `true` in `wrangler.toml`. This will cache the roles **every hour**, and will not check the API for roles until the cache expires.
+
+Example:
+
+```toml
+[vars]
+DISCORD_CLIENT_ID="YOUR_CLIENT_ID"
+REDIRECT_URL="https://YOURNAME.cloudflareaccess.com/cdn-cgi/access/callback"
+SERVERS_ROLE_CLAIMS=["YOUR_SERVER_ID", "YOUR_OTHER_SERVER_ID", ...]
+CACHE_ROLES=true
+```
+
+5. Edit the OIDC provider in Cloudflare Access and add the server IDs as claims prefixed with `roles:`, e.g. `roles:438781053675634713`
+
+6. When creating a policy, reference the `roles:` claims as the name, and use the role ID as the claim value. This will match users in that server who have that role.
+
 
 ## Examples
 
@@ -125,6 +186,7 @@ With roles:
 This example would allow me to access the application if I was myself on Discord or if I was a member of a specific server:
 ![](https://up.erisa.uk/firefox_1w0BXtk80X.png)
 
+
 ## Security
 
-If you find a security vulnerability in this repository, do NOT create an Issue or Pull Request. Please contact me through email or message (minsu.kim@hanarin.uk or Discord iam.ayaan).
+If you find a security vulnerability in this repository, do NOT create an Issue or Pull Request. Please contact me through email or message (minsu.kim@lunaiz.com or Discord iam.ayaan).
