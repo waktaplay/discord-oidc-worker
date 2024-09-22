@@ -7,15 +7,26 @@ import {
   setResponseStatus,
 } from 'h3';
 
+import {H3EventContextWithCloudflare} from '../types/cloudflare';
+
 const router = createRouter();
 
 router.get(
   '/authorize/:scopemode',
   defineEventHandler(async e => {
-    const c = e.context;
+    const c = e.context as H3EventContextWithCloudflare;
     const query = getQuery(e);
 
-    if (!c.cloudflare.env?.CLIENT_ID || !c.cloudflare.env?.REDIRECT_URL) {
+    const scopeMode = {
+      email: 'identify email',
+      guilds: 'identify email guilds',
+      roles: 'identify email guilds guilds.members.read',
+    };
+
+    if (
+      !c.cloudflare.env?.DISCORD_CLIENT_ID ||
+      !c.cloudflare.env?.REDIRECT_URL
+    ) {
       setResponseHeaders(e, {
         'content-type': 'text/plain',
       });
@@ -25,10 +36,10 @@ router.get(
     }
 
     if (
-      query.client_id !== c.cloudflare.env.CLIENT_ID ||
+      query.client_id !== c.cloudflare.env.DISCORD_CLIENT_ID ||
       query.redirect_uri !== c.cloudflare.env.REDIRECT_URL ||
       c.params?.scopemode === undefined ||
-      !['guilds', 'email'].includes(c.params.scopemode)
+      !Object.keys(scopeMode).includes(c.params.scopemode)
     ) {
       setResponseHeaders(e, {
         'content-type': 'text/plain',
@@ -40,13 +51,10 @@ router.get(
 
     // eslint-disable-next-line n/no-unsupported-features/node-builtins
     const params = new URLSearchParams({
-      client_id: c.cloudflare.env.CLIENT_ID as string,
+      client_id: c.cloudflare.env.DISCORD_CLIENT_ID as string,
       redirect_uri: c.cloudflare.env.REDIRECT_URL as string,
       response_type: 'code',
-      scope:
-        c.params!.scopemode === 'guilds'
-          ? 'identify email guilds'
-          : 'identify email',
+      scope: scopeMode[c.params.scopemode as keyof typeof scopeMode],
       state: query.state as string,
       prompt: 'none',
     }).toString();
